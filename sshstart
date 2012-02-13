@@ -1,0 +1,175 @@
+#! /usr/bin/env sh
+# (C) Martin V\"ath <martin@mvath.de>
+
+set -f
+
+Echo() {
+	printf '%s\n' "${*}"
+}
+
+Fatal() {
+	Echo "${0##*/}: ${*}" >&2
+	exit 2
+}
+
+Usage() {
+	Echo "Usage: ${0##*/} [options] [shkeys]
+This script will call ssh-add (with default-keys resp. sshkeys) if the user
+had no identity added yet. The keychain script is used if possible and,
+if required by the options, a new ssh-agent is started if necessary.
+The main intention of this script is that you can use aliases like
+    alias ssh='eval \"\`${0##*/} -s\`\"; /usr/bin/ssh'
+or (if you have 'keychain --noask --quiet --quick' in ~/.profile)
+    alias ssh='${0##*/}; /usr/bin/ssh'
+Then your identity is added (and you are asked for the passphrase)
+only the first time you use this alias (as long as ssh-agent can be accessed).
+
+The following options are available:
+-t       Try to use the terminal for the passphrase even under X (default).
+-x       Try to use X for the passphrase.
+-s       If no ssh-agent can be accessed, a new one is started.
+         You must \"eval\" the output (Bourne shell) if you use this option.
+-c       As above, but use C-Shell instead of Bourne shell.
+-a       If no ssh-agent can be accessed, a new one is started, initiating a
+         new \$SHELL session. If you use this option you should not eval
+         the output.
+-S SHELL Use SHELL instead of \$SHELL when a new session is started.
+-q       Be quiet (automatic if -s or -c is used).
+-k       Pretend (e.g. for debugging) that no keychain script is installed.
+-h or -H Print this help message
+
+If the environment variable HOSTTEXT is nonempty, the hostname is
+changed to \$HOSTNAME-\$HOSTTEXT for the corresponding keychainfile -
+so if you use chroot but always set HOSTTEXT according to your current root,
+you get a new agent for each chroot."
+	exit ${1:-1}
+}
+
+Push() {
+	case "${1}" in
+	-*)	shift
+		eval "${1}=''";;
+	esac
+	PushD_="${1}"
+	shift
+	eval "for PushA_
+	do	[ -z \"\${${PushD_}}\" ] && ${PushD_}=\\' \
+			|| ${PushD_}=\"\${${PushD_}} '\"
+		PushB_=\"\${PushA_}\"
+		while {
+			PushC_=\"\${PushB_%%\\'*}\"
+			[ \"\${PushC_}\" != \"\${PushB_}\" ]
+		}
+		do	${PushD_}=\"\${${PushD_}}\${PushC_}'\\\\''\"
+			PushB_=\"\${PushB_#*\\'}\"
+		done
+		${PushD_}=\"\${${PushD_}}\${PushB_}'\"
+	done"
+}
+
+keychain=false
+command -v keychain >/dev/null 2>&1 && keychain=:
+forceterm=:
+start=''
+Push -c myshell "${SHELL:-/bin/sh}"
+quiet=false
+OPTIND=1
+while getopts 'tscaS:qkhH?' opt
+do	case "${opt}" in
+	t)	forceterm=:;;
+	x)	forceterm=false;;
+	s)	quiet=:
+		start='s';;
+	c)	quiet=:
+		start='c';;
+	a)	start='a';;
+	S)	Push -c myshell "${OPTARG}";;
+	q)	quiet=:;;
+	k)	keychain=false;;
+	*)	Usage 0;;
+	esac
+done
+shift $(( ${OPTIND} -1 ))
+
+Push -c keys
+if [ ${#} -eq 0 ]
+then	for i in "${HOME}"/.ssh/id_rsa \
+		 "${HOME}"/.ssh/id_dsa \
+		 "${HOME}"/.ssh/identity
+	do	test -r "${i}"  && Push keys "${i}"
+	done
+else	while [ ${#} -ne 0 ]
+	do	test -r "${1}" && Push keys "${1}"
+		shift
+	done
+fi
+[ -n "${keys}" ] || exit 0
+
+ssh_output=''
+if ! "${forceterm}" && [ -n "${SSH_ASKPASS}" ] && [ -n "${DISPLAY}" ] && \
+	test -x "${SSH_ASKPASS}"
+	then	nullinput='</dev/null'
+else	nullinput=''
+	if [ -n "${SSH_ASKPASS}" ]
+	then	SSH_ASKPASS=''
+		ssh_output="SSH_ASKPASS='' "
+	fi
+fi
+nulloutput=''
+${quiet} && nulloutput='>/dev/null'
+
+# mode  is empty (if ssh-agent can be accessed and identity was added)
+#       or "0"   (if ssh-agent cannot be accessed)
+#       or "1"   (in ssh-agent can be accessed and identities need to be added)
+mode=''
+ret="$(LANG=C LC_MESSAGES=C ssh-add -l 2>/dev/null)" || mode=0
+case "${ret}" in
+*'no ident'*|*'not ident'*)
+	mode=1
+;;
+esac
+
+if ! ${keychain}
+then	[ -n "${mode}" ] || exit 0
+	if [ "${mode}" != 0 ]
+	then	eval "exec ssh-add -- ${keys} ${nullinput} ${nulloutput}"
+		Fatal "cannot execute ssh-add"
+	fi
+	[ -n "${start}" ] || exit 1
+	if [ "${start}" = 'a' ]
+	then	exec ssh-agent /bin/sh '-c' \
+			"ssh-add -- ${keys} ${nullinput} ${nulloutput} && exec ${myshell}"
+	else	Echo "${ssh_output}ssh-add" ${keys} ${nullinput} ${nulloutput}
+		exec ssh-agent "-${start}"
+	fi
+	Fatal "cannot execute ssh-agent"
+fi
+
+[ -n "${HOSTNAME}" ] || HOSTNAME="`uname -n 2>/dev/null || echo unknown`"
+[ -n "${HOSTTEXT}" ] && HOSTNAME="${HOSTNAME}-${HOSTTEXT}"
+
+[ "${mode}" = 0 ] && [ -z "${start}" ] && exit 1
+Push -c opts '--agents' 'ssh' '--quiet' '--attempts' '1'
+Push opts '--lockwait' '5' '--host' "${HOSTNAME}"
+${forceterm} && Push opts '--nogui'
+eval "keychain ${opts} -- ${keys} ${nullinput} ${nulloutput}"
+ret=${?}
+if [ -z "${mode}" ]
+then	GetAgentPid() {
+	unset SSH_AGENT_PID
+	. "${HOME}/.keychain/${HOSTNAME}-sh" && printf '%s' "${SSH_AGENT_PID}"
+}
+	[ "`GetAgentPid`" = "${SSH_AGENT_PID}" ] && exit ${ret}
+fi
+case "${start}" in
+s)
+	cat -- "${HOME}/.keychain/${HOSTNAME}-sh"
+;;
+c)
+	cat -- "${HOME}/.keychain/${HOSTNAME}-csh"
+;;
+a)
+	. "${HOME}/.keychain/${HOSTNAME}-sh" && eval exec ${myshell}
+;;
+esac || ret=2
+exit ${ret}
