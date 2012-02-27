@@ -46,22 +46,22 @@ you get a new agent for each chroot."
 }
 
 Push() {
-	case "${1}" in
+	case ${1} in
 	-*)	shift
 		eval "${1}=''";;
 	esac
-	PushD_="${1}"
+	PushD_=${1}
 	shift
 	eval "for PushA_
 	do	[ -z \"\${${PushD_}}\" ] && ${PushD_}=\\' \
 			|| ${PushD_}=\"\${${PushD_}} '\"
-		PushB_=\"\${PushA_}\"
+		PushB_=\${PushA_}
 		while {
-			PushC_=\"\${PushB_%%\\'*}\"
+			PushC_=\${PushB_%%\\'*}
 			[ \"\${PushC_}\" != \"\${PushB_}\" ]
 		}
 		do	${PushD_}=\"\${${PushD_}}\${PushC_}'\\\\''\"
-			PushB_=\"\${PushB_#*\\'}\"
+			PushB_=\${PushB_#*\\'}
 		done
 		${PushD_}=\"\${${PushD_}}\${PushB_}'\"
 	done"
@@ -75,7 +75,7 @@ Push -c myshell "${SHELL:-/bin/sh}"
 quiet=false
 OPTIND=1
 while getopts 'tscaS:qkhH?' opt
-do	case "${opt}" in
+do	case ${opt} in
 	t)	forceterm=:;;
 	x)	forceterm=false;;
 	s)	quiet=:
@@ -123,7 +123,7 @@ ${quiet} && nulloutput='>/dev/null'
 #       or "1"   (in ssh-agent can be accessed and identities need to be added)
 mode=''
 ret="$(LANG=C LC_MESSAGES=C ssh-add -l 2>/dev/null)" || mode=0
-case "${ret}" in
+case ${ret} in
 *'no ident'*|*'not ident'*)
 	mode=1
 ;;
@@ -161,7 +161,7 @@ then	GetAgentPid() {
 }
 	[ "`GetAgentPid`" = "${SSH_AGENT_PID}" ] && exit ${ret}
 fi
-case "${start}" in
+case ${start} in
 s)
 	cat -- "${HOME}/.keychain/${HOSTNAME}-sh"
 ;;
