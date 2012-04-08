@@ -48,7 +48,7 @@ you get a new agent for each chroot."
 Push() {
 	case ${1} in
 	-*)	shift
-		eval "${1}=''";;
+		eval ${1}=;;
 	esac
 	PushD_=${1}
 	shift
@@ -70,7 +70,7 @@ Push() {
 keychain=false
 command -v keychain >/dev/null 2>&1 && keychain=:
 forceterm=:
-start=''
+start=
 Push -c myshell "${SHELL:-/bin/sh}"
 quiet=false
 OPTIND=1
@@ -105,23 +105,23 @@ else	while [ ${#} -ne 0 ]
 fi
 [ -n "${keys}" ] || exit 0
 
-ssh_output=''
+ssh_output=
 if ! "${forceterm}" && [ -n "${SSH_ASKPASS}" ] && [ -n "${DISPLAY}" ] && \
 	test -x "${SSH_ASKPASS}"
 	then	nullinput='</dev/null'
-else	nullinput=''
+else	nullinput=
 	if [ -n "${SSH_ASKPASS}" ]
-	then	SSH_ASKPASS=''
-		ssh_output="SSH_ASKPASS='' "
+	then	SSH_ASKPASS=
+		ssh_output="SSH_ASKPASS= "
 	fi
 fi
-nulloutput=''
+nulloutput=
 ${quiet} && nulloutput='>/dev/null'
 
 # mode  is empty (if ssh-agent can be accessed and identity was added)
 #       or "0"   (if ssh-agent cannot be accessed)
 #       or "1"   (in ssh-agent can be accessed and identities need to be added)
-mode=''
+mode=
 ret="$(LANG=C LC_MESSAGES=C ssh-add -l 2>/dev/null)" || mode=0
 case ${ret} in
 *'no ident'*|*'not ident'*)
