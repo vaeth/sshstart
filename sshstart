@@ -83,14 +83,14 @@ else	while [ ${#} -ne 0 ]
 		shift
 	done
 fi
-[ -n "${keys}" ] || exit 0
+[ -n "${keys:++}" ] || exit 0
 
 ssh_output=
-if ! "${forceterm}" && [ -n "${SSH_ASKPASS}" ] && [ -n "${DISPLAY}" ] && \
-	test -x "${SSH_ASKPASS}"
+if ! "${forceterm}" && [ -n "${SSH_ASKPASS:++}" ] && [ -n "${DISPLAY:++}" ] \
+	&& test -x "${SSH_ASKPASS}"
 	then	nullinput='</dev/null'
 else	nullinput=
-	if [ -n "${SSH_ASKPASS}" ]
+	if [ -n "${SSH_ASKPASS:++}" ]
 	then	SSH_ASKPASS=
 		ssh_output="SSH_ASKPASS= "
 	fi
@@ -105,17 +105,16 @@ mode=
 ret="$(LANG=C LC_MESSAGES=C ssh-add -l 2>/dev/null)" || mode=0
 case ${ret} in
 *'no ident'*|*'not ident'*)
-	mode=1
-;;
+	mode=1;;
 esac
 
 if ! ${keychain}
-then	[ -n "${mode}" ] || exit 0
+then	[ -n "${mode:++}" ] || exit 0
 	if [ "${mode}" != 0 ]
 	then	eval "exec ssh-add -- ${keys} ${nullinput} ${nulloutput}"
 		Fatal "cannot execute ssh-add"
 	fi
-	[ -n "${start}" ] || exit 1
+	[ -n "${start:++}" ] || exit 1
 	if [ "${start}" = 'a' ]
 	then	exec ssh-agent /bin/sh '-c' \
 			"ssh-add -- ${keys} ${nullinput} ${nulloutput} && exec ${myshell}"
@@ -125,16 +124,16 @@ then	[ -n "${mode}" ] || exit 0
 	Fatal "cannot execute ssh-agent"
 fi
 
-[ -n "${HOSTNAME}" ] || HOSTNAME="`uname -n 2>/dev/null || echo unknown`"
-[ -n "${HOSTTEXT}" ] && HOSTNAME="${HOSTNAME}-${HOSTTEXT}"
+[ -n "${HOSTNAME:++}" ] || HOSTNAME="`uname -n 2>/dev/null || echo unknown`"
+[ -n "${HOSTTEXT:++}" ] && HOSTNAME="${HOSTNAME}-${HOSTTEXT}"
 
-[ "${mode}" = 0 ] && [ -z "${start}" ] && exit 1
+[ "${mode}" = 0 ] && [ -z "${start:++}" ] && exit 1
 Push -c opts '--agents' 'ssh' '--quiet' '--attempts' '1'
 Push opts '--lockwait' '5' '--host' "${HOSTNAME}"
 ${forceterm} && Push opts '--nogui'
 eval "keychain ${opts} -- ${keys} ${nullinput} ${nulloutput}"
 ret=${?}
-if [ -z "${mode}" ]
+if [ -z "${mode:++}" ]
 then	GetAgentPid() {
 	unset SSH_AGENT_PID
 	. "${HOME}/.keychain/${HOSTNAME}-sh" && printf '%s' "${SSH_AGENT_PID}"
@@ -143,13 +142,10 @@ then	GetAgentPid() {
 fi
 case ${start} in
 s)
-	cat -- "${HOME}/.keychain/${HOSTNAME}-sh"
-;;
+	cat -- "${HOME}/.keychain/${HOSTNAME}-sh";;
 c)
-	cat -- "${HOME}/.keychain/${HOSTNAME}-csh"
-;;
+	cat -- "${HOME}/.keychain/${HOSTNAME}-csh";;
 a)
-	. "${HOME}/.keychain/${HOSTNAME}-sh" && eval exec ${myshell}
-;;
+	. "${HOME}/.keychain/${HOSTNAME}-sh" && eval exec ${myshell};;
 esac || ret=2
 exit ${ret}
