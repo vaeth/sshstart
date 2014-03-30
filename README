@@ -14,6 +14,6 @@ You will want to set corresponding shell aliases in your shell:
 To get a description run
 	sshstart -h
 
-You also need push.sh from http://github.com/vaeth/push in your path.
+You also need push.sh from https://github.com/vaeth/push in your path.
 
 For Gentoo, there is an ebuild in the mv overlay (available by layman).
