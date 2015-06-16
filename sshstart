@@ -4,11 +4,11 @@
 set -f
 
 Echo() {
-	printf '%s\n' "${*}"
+	printf '%s\n' "$*"
 }
 
 Fatal() {
-	Echo "${0##*/}: ${*}" >&2
+	Echo "${0##*/}: $*" >&2
 	exit 2
 }
 
@@ -55,7 +55,7 @@ Push -c myshell "${SHELL:-/bin/sh}"
 quiet=false
 OPTIND=1
 while getopts 'tscaS:qkhH?' opt
-do	case ${opt} in
+do	case $opt in
 	t)	forceterm=:;;
 	x)	forceterm=false;;
 	s)	quiet=:
@@ -63,31 +63,31 @@ do	case ${opt} in
 	c)	quiet=:
 		start='c';;
 	a)	start='a';;
-	S)	Push -c myshell "${OPTARG}";;
+	S)	Push -c myshell "$OPTARG";;
 	q)	quiet=:;;
 	k)	keychain=false;;
 	*)	Usage 0;;
 	esac
 done
-shift $(( ${OPTIND} -1 ))
+shift $(( $OPTIND -1 ))
 
 Push -c keys
-if [ ${#} -eq 0 ]
-then	for i in "${HOME}"/.ssh/id_rsa \
-		 "${HOME}"/.ssh/id_dsa \
-		 "${HOME}"/.ssh/identity
-	do	test -r "${i}"  && Push keys "${i}"
+if [ $# -eq 0 ]
+then	for i in "$HOME"/.ssh/id_rsa \
+		 "$HOME"/.ssh/id_dsa \
+		 "$HOME"/.ssh/identity
+	do	test -r "$i"  && Push keys "$i"
 	done
-else	while [ ${#} -ne 0 ]
-	do	test -r "${1}" && Push keys "${1}"
+else	while [ $# -ne 0 ]
+	do	test -r "$1" && Push keys "$1"
 		shift
 	done
 fi
 [ -n "${keys:++}" ] || exit 0
 
 ssh_output=
-if ! "${forceterm}" && [ -n "${SSH_ASKPASS:++}" ] && [ -n "${DISPLAY:++}" ] \
-	&& test -x "${SSH_ASKPASS}"
+if ! "$forceterm" && [ -n "${SSH_ASKPASS:++}" ] && [ -n "${DISPLAY:++}" ] \
+	&& test -x "$SSH_ASKPASS"
 	then	nullinput='</dev/null'
 else	nullinput=
 	if [ -n "${SSH_ASKPASS:++}" ]
@@ -96,56 +96,56 @@ else	nullinput=
 	fi
 fi
 nulloutput=
-${quiet} && nulloutput='>/dev/null'
+$quiet && nulloutput='>/dev/null'
 
 # mode  is empty (if ssh-agent can be accessed and identity was added)
 #       or "0"   (if ssh-agent cannot be accessed)
 #       or "1"   (in ssh-agent can be accessed and identities need to be added)
 mode=
-ret="$(LANG=C LC_MESSAGES=C ssh-add -l 2>/dev/null)" || mode=0
-case ${ret} in
+ret=$(LANG=C LC_MESSAGES=C ssh-add -l 2>/dev/null) || mode=0
+case $ret in
 *'no ident'*|*'not ident'*)
 	mode=1;;
 esac
 
-if ! ${keychain}
+if ! $keychain
 then	[ -n "${mode:++}" ] || exit 0
-	if [ "${mode}" != 0 ]
-	then	eval "exec ssh-add -- ${keys} ${nullinput} ${nulloutput}"
+	if [ "$mode" != 0 ]
+	then	eval "exec ssh-add -- $keys $nullinput $nulloutput"
 		Fatal "cannot execute ssh-add"
 	fi
 	[ -n "${start:++}" ] || exit 1
-	if [ "${start}" = 'a' ]
+	if [ "$start" = 'a' ]
 	then	exec ssh-agent /bin/sh '-c' \
-			"ssh-add -- ${keys} ${nullinput} ${nulloutput} && exec ${myshell}"
-	else	Echo "${ssh_output}ssh-add" ${keys} ${nullinput} ${nulloutput}
-		exec ssh-agent "-${start}"
+			"ssh-add -- $keys $nullinput $nulloutput && exec $myshell"
+	else	Echo "${ssh_output}ssh-add" $keys $nullinput $nulloutput
+		exec ssh-agent "-$start"
 	fi
 	Fatal "cannot execute ssh-agent"
 fi
 
-[ -n "${HOSTNAME:++}" ] || HOSTNAME="`uname -n 2>/dev/null || echo unknown`"
-[ -n "${HOSTTEXT:++}" ] && HOSTNAME="${HOSTNAME}-${HOSTTEXT}"
+[ -n "${HOSTNAME:++}" ] || HOSTNAME=`uname -n 2>/dev/null || echo unknown`
+[ -n "${HOSTTEXT:++}" ] && HOSTNAME=$HOSTNAME-$HOSTTEXT
 
-[ "${mode}" = 0 ] && [ -z "${start:++}" ] && exit 1
+[ "$mode" = 0 ] && [ -z "${start:++}" ] && exit 1
 Push -c opts '--agents' 'ssh' '--quiet' '--attempts' '1'
-Push opts '--lockwait' '5' '--host' "${HOSTNAME}"
-${forceterm} && Push opts '--nogui'
-eval "keychain ${opts} -- ${keys} ${nullinput} ${nulloutput}"
-ret=${?}
+Push opts '--lockwait' '5' '--host' "$HOSTNAME"
+$forceterm && Push opts '--nogui'
+eval "keychain $opts -- $keys $nullinput $nulloutput"
+ret=$?
 if [ -z "${mode:++}" ]
 then	GetAgentPid() {
 	unset SSH_AGENT_PID
-	. "${HOME}/.keychain/${HOSTNAME}-sh" && printf '%s' "${SSH_AGENT_PID}"
+	. "$HOME/.keychain/$HOSTNAME-sh" && printf '%s' "$SSH_AGENT_PID"
 }
-	[ "`GetAgentPid`" = "${SSH_AGENT_PID}" ] && exit ${ret}
+	[ "`GetAgentPid`" = "$SSH_AGENT_PID" ] && exit $ret
 fi
-case ${start} in
+case $start in
 s)
-	cat -- "${HOME}/.keychain/${HOSTNAME}-sh";;
+	cat -- "$HOME/.keychain/$HOSTNAME-sh";;
 c)
-	cat -- "${HOME}/.keychain/${HOSTNAME}-csh";;
+	cat -- "$HOME/.keychain/$HOSTNAME-csh";;
 a)
-	. "${HOME}/.keychain/${HOSTNAME}-sh" && eval exec ${myshell};;
+	. "$HOME/.keychain/$HOSTNAME-sh" && eval exec $myshell;;
 esac || ret=2
-exit ${ret}
+exit $ret
