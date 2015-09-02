@@ -73,10 +73,12 @@ shift $(( $OPTIND -1 ))
 
 Push -c keys
 if [ $# -eq 0 ]
-then	for i in "$HOME"/.ssh/id_rsa \
-		 "$HOME"/.ssh/id_dsa \
-		 "$HOME"/.ssh/identity
-	do	test -r "$i"  && Push keys "$i"
+then	for i in "$HOME"/.ssh/id*
+	do	case $i in
+		*.pub)
+			continue;;
+		esac
+		test -r "$i"  && Push keys "$i"
 	done
 else	while [ $# -ne 0 ]
 	do	test -r "$1" && Push keys "$1"
