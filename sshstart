@@ -73,13 +73,15 @@ shift $(( $OPTIND -1 ))
 
 Push -c keys
 if [ $# -eq 0 ]
-then	for i in "$HOME"/.ssh/id*
+then	set +f
+	for i in "$HOME"/.ssh/id*
 	do	case $i in
 		*.pub)
 			continue;;
 		esac
 		test -r "$i"  && Push keys "$i"
 	done
+	set -f
 else	while [ $# -ne 0 ]
 	do	test -r "$1" && Push keys "$1"
 		shift
