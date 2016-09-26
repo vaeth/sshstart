@@ -54,7 +54,7 @@ start=
 Push -c myshell "${SHELL:-/bin/sh}"
 quiet=false
 OPTIND=1
-while getopts 'tscaS:qkhH?' opt
+while getopts 'txscaS:qkhH' opt
 do	case $opt in
 	t)	forceterm=:;;
 	x)	forceterm=false;;
@@ -66,6 +66,7 @@ do	case $opt in
 	S)	Push -c myshell "$OPTARG";;
 	q)	quiet=:;;
 	k)	keychain=false;;
+	'?')	exit 1;;
 	*)	Usage 0;;
 	esac
 done
