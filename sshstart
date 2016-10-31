@@ -45,7 +45,9 @@ you get a new agent for each chroot."
 	exit ${1:-1}
 }
 
-. push.sh
+PushA_=`push.sh 2>/dev/null` || Fatal \
+"push.sh from https://github.com/vaeth/push (v2.0 or newer) required"
+eval "$PushA_"
 
 keychain=false
 command -v keychain >/dev/null 2>&1 && keychain=:
