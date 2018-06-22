@@ -1,0 +1,205 @@
+#!/usr/bin/env sh
+# (C) Martin V\"ath <martin@mvath.de>
+set -u
+set -f
+version=4.0
+
+Echo() {
+	printf '%s\n' "$*"
+}
+
+Fatal() {
+	Echo "${0##*/}: $*" >&2
+	exit 2
+}
+
+Version() {
+	Echo "sshstart $version"
+	exit 0
+}
+
+Push() {
+	PushA_=`push.sh 2>/dev/null` || Fatal \
+	"push.sh from https://github.com/vaeth/push (v2.0 or newer) required"
+	eval "$PushA_"
+	Push "$@"
+}
+
+Sanitize() {
+	case ${2:-x} in
+	*[!0123456789]*)
+		eval $1=
+		return;;
+	esac
+	eval $1=\$2
+}
+
+Usage() {
+	Echo "Usage: ${0##*/} [options] [--] [args]
+This script will do the following things:
+
+0. PATH is set to /local/usr/bin:/usr/bin:/bin
+1. If no gpg-agent is running, one is started to emulate an ssh server.
+2. If the user had no identity added yet, ssh-add is called.
+3. If the script is called under a different name than \"sshstart\", e.g.
+   \"ssh-wrap\" then everything after the first non-letter symbol of the
+   name is removed, and the corresponding first matching file is executed
+   and gets passed [args] as arguments.
+
+The intention is that you link this file e.g. under the names \"ssh-wrap\"
+and \"rsync-wrap\" which then behaves like \"ssh\" or \"rsync\" but with the
+option to start first gpg-agent and add your keys if this had not yet happened.
+In order to set correct environment variables for non-wrapped commands, put
+	unset SSH_AGENT_PID
+	eval "`sshstart -e`"
+in your shell startup file. It might also be convenient to put e.g.
+	alias ssh='ssh-wrap --'
+	alias rsync='rsync-wrap --'
+	...
+in your shell startup file to let 'ssh' ask for your keys only once.
+
+The following options are available:
+-d SEC pass --default-cache-ttl-ssh SEC --default-cache-ttl SEC to gpg-agent
+       (default: 315360000 seconds = 10 years; - uses gpg-agents's default)
+-t SEC pass --max-cache-ttl-ssh SEC --max-cache-ttl SEC to gpg-agent
+       (default: 315360000 = 10 years; - uses gpg-agents's default)
+-T     Do not set GPG_TTY
+-G     Skip step 1: do not start the gpg-agent
+-A     Skip step 2: do not run ssh-add
+-X     Skip step 3: Do not execute anything afterwards
+-e     Similar to -AX but output sockets for usage with eval.
+       If combined with -T do not output commands to set/update GPG_TTY
+-g ARG Pass ARG to gpg-agent (accumulative)
+-a ARG Pass ARG to ssh-add (accumulative)
+-x NAME Pretend that the script has been called under the name \"NAME\"
+-K     Do not add default keys from ~/.ssh to arguments of ssh-add
+-P     Do not modify PATH
+-V     Print version and exit
+-h     Print this help message and exit"
+	exit ${1:-1}
+}
+
+name=${0##*/}
+gpg_args=
+add_args=
+Sanitize d_ttl 315360000
+Sanitize m_ttl 315360000
+start_agent=:
+start_add=:
+start_exec=:
+print_environment=false
+default_keys=:
+set_tty=:
+modify_path=:
+OPTIND=1
+while getopts 'd:t:GAXeTKPg:a:x:VhH' opt
+do	case $opt in
+	d)	Sanitize d_ttl "$OPTARG";;
+	t)	Sanitize m_ttl "$OPTARG";;
+	G)	start_agent=false;;
+	A)	start_add=false;;
+	X)	start_exec=false;;
+	e)	print_environment=:;;
+	g)	Push gpg_args "$OPTARG";;
+	a)	Push add_args "$OPTARG";;
+	x)	name=${OPTARG##*/};;
+	T)	set_tty=false;;
+	K)	default_keys=false;;
+	P)	modify_path=false;;
+	V)	Version;;
+	'?')	exit 1;;
+	*)	Usage 0;;
+	esac
+done
+shift $(( $OPTIND -1 ))
+
+if $modify_path
+then	PATH=/usr/local/bin:/usr/bin:/bin
+	export PATH
+fi
+
+status=0
+
+if $set_tty
+then	export_tty='test -t 0 && GPG_TTY=`tty` && export GPG_TTY'
+else	export_tty=
+fi
+
+StartGpg() {
+	eval "$export_tty
+set -- a $gpg_args"
+	shift
+	startgpg=`gpg-agent --daemon --enable-ssh-support \
+	${d_ttl:+--default-cache-ttl-ssh $d_ttl --default-cache-ttl $d_ttl} \
+	${m_ttl:+--max-cache-ttl-ssh $m_ttl --max-cache-ttl $m_ttl} \
+	"${@}"` || {
+		status=$?
+		if $print_environment
+		then	Echo "$export_tty"
+			exit $status
+		fi
+		return
+	}
+	if $print_environment
+	then	if [ -n "$export_tty" ]
+		then	Echo "$export_tty"${startgpg:+;\ }"$startgpg"
+		else	Echo "$startgpg"
+		fi
+		exit 0
+	fi
+	eval "$startgpg"
+}
+ReviveGpg() {
+	! $set_tty || \
+		update_tty='[ -z "${GPG_TTY:++}" ] || gpg-connect-agent updatestartuptty /bye >/dev/null'
+	if [ "${gnupg_SSH_AUTH_SOCK_by:-0}" -ne $$ ]
+	then	revivegpg='SSH_AUTH_SOCK=`gpgconf --list-dirs agent-ssh-socket`; export SSH_AUTH_SOCK'
+		if $print_environment
+		then	Echo "$export_tty"${export_tty:+;\ }"$revivegpg"${update_tty:+;\ }"$update_tty"
+			exit 0
+		fi
+	fi
+	eval "$export_tty
+$revivegpg"
+}
+
+update_tty=
+unset SSH_AUTH_SOCK SSH_AGENT_PID
+if $start_agent && ! gpg-agent >/dev/null 2>&1
+then	StartGpg
+else	ReviveGpg
+fi
+
+AddKeys() {
+	set +f
+	for addkeys in "$HOME"/.ssh/id*
+	do	case $addkeys in
+		*.pub)
+			continue;;
+		esac
+		test -r "$addkeys" && Push keys "$addkeys"
+	done
+	set -f
+}
+SshAdd() {
+	sshadd=`LANG=C LC_MESSAGES=C ssh-add -l 2>/dev/null` || return 0
+	case $sshadd in
+	*'no ident'*|*'not ident'*)
+		eval "$update_tty
+set -- a $add_args $keys"
+		ssh-add "$@" $keys || status=$?
+	esac
+}
+
+if $start_add
+then	keys=
+	! $default_keys || AddKeys
+	[ -z "${keys:++}${add_args:++}" ] || SshAdd
+fi
+
+if $start_exec && [ -n "$name" ] && [ "$name" != 'sshstart' ]
+then	exec "${name%[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPRSTUVWXYZ]*}" "$@" \
+		|| status=$?
+fi
+
+exit $status
