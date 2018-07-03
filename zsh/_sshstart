@@ -24,13 +24,15 @@ _arguments -s -S -A '-*' : \
 '-d+[Pass specified seconds as default TTL]:seconds:(315360000)' \
 '-t+[Pass specified seconds as max TTL]:seconds:(315360000)' \
 '-T[Do not set GPG_TTY]' \
+'-U[Do not update tty according to GPG_TTY]' \
 '-G[Do not start gpg-agent]' \
 '-A[Do not run ssh-add]' \
 '-X[Do not execute anything afterwards]' \
-'-g+[Pass specified arg to gpg-agent]:gpg-agent arg:()' \
-'-a+[Pass specified arg to ssh-add]:ssh-add arg:()' \
+'-g+[Pass specified arg to gpg-agent]:gpg-agent arg: ' \
+'-a+[Pass specified arg to ssh-add]:ssh-add arg: ' \
 '-x+[Pretend specified name for script]:pretended name:(mosh rsync scp sftp ssh zssh)' \
-'-K+[Do not add default keys from ~/.ssh]' \
+'-k[Add keys even if there were already some added]' \
+'-K[Do not add default keys from ~/.ssh]' \
 '-P[Do not modify PATH]' \
 '(-A -X)-e[Output sockets for usage with eval; implies -AX]' \
 '-V[Print version and exit]' \

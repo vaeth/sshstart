@@ -2,7 +2,7 @@
 # (C) Martin V\"ath <martin@mvath.de>
 set -u
 set -f
-version=4.1
+version=4.2
 
 Echo() {
 	printf '%s\n' "$*"
@@ -40,7 +40,7 @@ This script will do the following things:
 
 0. PATH is set to /local/usr/bin:/usr/bin:/bin
 1. If no gpg-agent is running, one is started to emulate an ssh server.
-2. If the user had no identity added yet, ssh-add is called.
+2. If the user had no keys added yet, ssh-add is called.
 3. If the script is called under a different name than \"sshstart\", e.g.
    \"ssh-wrap\" then everything after the first non-letter symbol of the
    name is removed, and the corresponding first matching file is executed
@@ -63,7 +63,8 @@ The following options are available:
        (default: 315360000 seconds = 10 years; - uses gpg-agents's default)
 -t SEC pass --max-cache-ttl-ssh SEC --max-cache-ttl SEC to gpg-agent
        (default: 315360000 = 10 years; - uses gpg-agents's default)
--T     Do not set GPG_TTY
+-T     Do not set GPG_TTY. You might want to manually export GPG_TTY=\`tty\`
+-U     Do not update tty according to GPG_TTY. Similar to -T with unset GPG_TTY
 -G     Skip step 1: do not start the gpg-agent
 -A     Skip step 2: do not run ssh-add
 -X     Skip step 3: Do not execute anything afterwards
@@ -72,6 +73,7 @@ The following options are available:
 -g ARG Pass ARG to gpg-agent (accumulative)
 -a ARG Pass ARG to ssh-add (accumulative)
 -x NAME Pretend that the script has been called under the name \"NAME\"
+-k     Add keys even if there were already some keys added
 -K     Do not add default keys from ~/.ssh to arguments of ssh-add
 -P     Do not modify PATH
 -V     Print version and exit
@@ -90,9 +92,11 @@ start_exec=:
 print_environment=false
 default_keys=:
 set_tty=:
+update_tty=:
 modify_path=:
+check_added_keys=:
 OPTIND=1
-while getopts 'd:t:GAXeTKPg:a:x:VhH' opt
+while getopts 'd:t:GAXeTUkKPg:a:x:VhH' opt
 do	case $opt in
 	d)	Sanitize d_ttl "$OPTARG";;
 	t)	Sanitize m_ttl "$OPTARG";;
@@ -104,6 +108,8 @@ do	case $opt in
 	a)	Push add_args "$OPTARG";;
 	x)	name=${OPTARG##*/};;
 	T)	set_tty=false;;
+	U)	update_tty=false;;
+	k)	check_added_keys=false;;
 	K)	default_keys=false;;
 	P)	modify_path=false;;
 	V)	Version;;
@@ -112,6 +118,8 @@ do	case $opt in
 	esac
 done
 shift $(( $OPTIND -1 ))
+
+# 0.
 
 if $modify_path
 then	PATH=/usr/local/bin:/usr/bin:/bin
@@ -124,6 +132,8 @@ if $set_tty
 then	export_tty='test -t 0 && GPG_TTY=`tty` && export GPG_TTY'
 else	export_tty=
 fi
+
+# 1.
 
 StartGpg() {
 	eval "$export_tty
@@ -149,9 +159,10 @@ set -- a $gpg_args"
 	fi
 	eval "$startgpg"
 }
+
 ReviveGpg() {
-	! $set_tty || \
-		update_tty='[ -z "${GPG_TTY:++}" ] || gpg-connect-agent updatestartuptty /bye >/dev/null'
+	! $update_tty || \
+		uptty='[ -z "${GPG_TTY:++}" ] || gpg-connect-agent updatestartuptty /bye >/dev/null'
 	if [ "${gnupg_SSH_AUTH_SOCK_by:-0}" -ne $$ ]
 	then	revivegpg='SSH_AUTH_SOCK=`gpgconf --list-dirs agent-ssh-socket`; export SSH_AUTH_SOCK'
 		if $print_environment
@@ -163,12 +174,14 @@ ReviveGpg() {
 $revivegpg"
 }
 
-update_tty=
+uptty=
 unset SSH_AUTH_SOCK SSH_AGENT_PID
 if $start_agent && ! gpg-agent >/dev/null 2>&1
 then	StartGpg
 else	ReviveGpg
 fi
+
+# 2.
 
 AddKeys() {
 	set +f
@@ -177,26 +190,35 @@ AddKeys() {
 		*.pub)
 			continue;;
 		esac
-		test -r "$addkeys" && Push keys "$addkeys"
+		test -r "$addkeys" && Push add_args "$addkeys"
 	done
 	set -f
 }
-SshAdd() {
-	sshadd=`LANG=C LC_MESSAGES=C ssh-add -l 2>/dev/null` || sshadd=
-	case ${sshadd:--} in
+
+SshHaveAddedKeys() {
+	$check_added_keys && sshhaveaddedkeys=`LANG=C LC_MESSAGES=C
+		ssh-add -l 2>/dev/null` || return
+	case ${sshhaveaddedkeys:--} in
 	'-'|*'no ident'*|*'not ident'*)
-		eval "$update_tty
-set -- a $add_args $keys"
-		shift
-		ssh-add "$@" || status=$?
+		return 1;;
 	esac
+}
+
+SshAdd() {
+	! SshHaveAddedKeys || return 0
+	eval "$uptty
+set -- a $add_args"
+	shift
+	ssh-add "$@" || status=$?
 }
 
 if $start_add
 then	keys=
 	! $default_keys || AddKeys
-	[ -z "${keys:++}${add_args:++}" ] || SshAdd
+	SshAdd
 fi
+
+# 3.
 
 if $start_exec && [ -n "$name" ] && [ "$name" != 'sshstart' ]
 then	exec "${name%[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPRSTUVWXYZ]*}" "$@" \
