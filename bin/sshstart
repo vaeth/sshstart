@@ -2,7 +2,7 @@
 # (C) Martin V\"ath <martin@mvath.de>
 set -u
 set -f
-version=4.0
+version=4.1
 
 Echo() {
 	printf '%s\n' "$*"
@@ -182,12 +182,13 @@ AddKeys() {
 	set -f
 }
 SshAdd() {
-	sshadd=`LANG=C LC_MESSAGES=C ssh-add -l 2>/dev/null` || return 0
-	case $sshadd in
-	*'no ident'*|*'not ident'*)
+	sshadd=`LANG=C LC_MESSAGES=C ssh-add -l 2>/dev/null` || sshadd=
+	case ${sshadd:--} in
+	'-'|*'no ident'*|*'not ident'*)
 		eval "$update_tty
 set -- a $add_args $keys"
-		ssh-add "$@" $keys || status=$?
+		shift
+		ssh-add "$@" || status=$?
 	esac
 }
 
