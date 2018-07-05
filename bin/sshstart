@@ -2,7 +2,7 @@
 # (C) Martin V\"ath <martin@mvath.de>
 set -u
 set -f
-version=4.2
+version=4.3
 
 Echo() {
 	printf '%s\n' "$*"
@@ -68,7 +68,7 @@ The following options are available:
 -G     Skip step 1: do not start the gpg-agent
 -A     Skip step 2: do not run ssh-add
 -X     Skip step 3: Do not execute anything afterwards
--e     Similar to -AX but output sockets for usage with eval.
+-e     Similar to -X but output sockets for usage with eval.
        If combined with -T do not output commands to set/update GPG_TTY
 -g ARG Pass ARG to gpg-agent (accumulative)
 -a ARG Pass ARG to ssh-add (accumulative)
@@ -155,7 +155,7 @@ set -- a $gpg_args"
 		then	Echo "$export_tty"${startgpg:+;\ }"$startgpg"
 		else	Echo "$startgpg"
 		fi
-		exit 0
+		$start_add || exit 0
 	fi
 	eval "$startgpg"
 }
@@ -167,7 +167,7 @@ ReviveGpg() {
 	then	revivegpg='SSH_AUTH_SOCK=`gpgconf --list-dirs agent-ssh-socket`; export SSH_AUTH_SOCK'
 		if $print_environment
 		then	Echo "$export_tty"${export_tty:+;\ }"$revivegpg"${update_tty:+;\ }"$update_tty"
-			exit 0
+			$start_add || exit 0
 		fi
 	fi
 	eval "$export_tty
@@ -220,7 +220,8 @@ fi
 
 # 3.
 
-if $start_exec && [ -n "$name" ] && [ "$name" != 'sshstart' ]
+if $start_exec && ! $print_environment && \
+	[ -n "$name" ] && [ "$name" != 'sshstart' ]
 then	exec "${name%[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPRSTUVWXYZ]*}" "$@" \
 		|| status=$?
 fi

@@ -34,6 +34,6 @@ _arguments -s -S -A '-*' : \
 '-k[Add keys even if there were already some added]' \
 '-K[Do not add default keys from ~/.ssh]' \
 '-P[Do not modify PATH]' \
-'(-A -X)-e[Output sockets for usage with eval; implies -AX]' \
+'(-X)-e[Output sockets for usage with eval; implies -X]' \
 '-V[Print version and exit]' \
 '(-H)-'{h,H}'[Print help message and exit]'
