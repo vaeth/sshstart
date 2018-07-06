@@ -2,7 +2,7 @@
 # (C) Martin V\"ath <martin@mvath.de>
 set -u
 set -f
-version=4.3
+version=4.4
 
 Echo() {
 	printf '%s\n' "$*"
@@ -23,6 +23,19 @@ Push() {
 	"push.sh from https://github.com/vaeth/push (v2.0 or newer) required"
 	eval "$PushA_"
 	Push "$@"
+}
+
+EchoExec() {
+	echoexec=
+	if [ "${1:++}" = exec ]
+	then	echoexec=exec
+		shift
+	fi
+	if $verbose
+	then	Push -c echocmd "$@" || return 0
+		Echo "$echocmd"
+	fi
+	$echoexec ${1+"$@"}
 }
 
 Sanitize() {
@@ -68,7 +81,7 @@ The following options are available:
 -G     Skip step 1: do not start the gpg-agent
 -A     Skip step 2: do not run ssh-add
 -X     Skip step 3: Do not execute anything afterwards
--e     Similar to -X but output sockets for usage with eval.
+-e     Similar to -X but output sockets for usage with eval. Disables -v
        If combined with -T do not output commands to set/update GPG_TTY
 -g ARG Pass ARG to gpg-agent (accumulative)
 -a ARG Pass ARG to ssh-add (accumulative)
@@ -76,9 +89,45 @@ The following options are available:
 -k     Add keys even if there were already some keys added
 -K     Do not add default keys from ~/.ssh to arguments of ssh-add
 -P     Do not modify PATH
+-v     Verbose mode
 -V     Print version and exit
 -h     Print this help message and exit"
 	exit ${1:-1}
+}
+
+AddEvalVar() {
+	for addevalvar
+	do	if [ -n "${addevalvar:++}" ]
+		then	evalvar=$evalvar${evalvar:+;\ }$addevalvar
+		fi
+	done
+}
+
+InitEvalVar() {
+	evalvar=
+	AddEvalVar ${1+"$@"}
+}
+
+FinishEvalVar() {
+	[ -n "${evalvar:++}" ] || evalvar=:
+}
+
+SetEvalVar() {
+	InitEvalVar "$@"
+	FinishEvalVar
+}
+
+EchoEvalVar() {
+	Echo "$evalvar"
+}
+
+EvalEvalVar() {
+	eval "$evalvar"
+}
+
+EchoSetEvalVar() {
+	SetEvalVar "$@"
+	EchoEvalVar
 }
 
 name=${0##*/}
@@ -95,8 +144,9 @@ set_tty=:
 update_tty=:
 modify_path=:
 check_added_keys=:
+verbose=false
 OPTIND=1
-while getopts 'd:t:GAXeTUkKPg:a:x:VhH' opt
+while getopts 'd:t:GAXeTUkKPg:a:x:vVhH' opt
 do	case $opt in
 	d)	Sanitize d_ttl "$OPTARG";;
 	t)	Sanitize m_ttl "$OPTARG";;
@@ -112,6 +162,7 @@ do	case $opt in
 	k)	check_added_keys=false;;
 	K)	default_keys=false;;
 	P)	modify_path=false;;
+	v)	verbose=:;;
 	V)	Version;;
 	'?')	exit 1;;
 	*)	Usage 0;;
@@ -119,11 +170,17 @@ do	case $opt in
 done
 shift $(( $OPTIND -1 ))
 
+if $print_environment
+then	verbose=false
+	start_exec=false
+fi
+
 # 0.
 
 if $modify_path
 then	PATH=/usr/local/bin:/usr/bin:/bin
 	export PATH
+	! $verbose || Echo "PATH=$PATH; export PATH"
 fi
 
 status=0
@@ -136,45 +193,57 @@ fi
 # 1.
 
 StartGpg() {
-	eval "$export_tty
-set -- a $gpg_args"
-	shift
-	startgpg=`gpg-agent --daemon --enable-ssh-support \
-	${d_ttl:+--default-cache-ttl-ssh $d_ttl --default-cache-ttl $d_ttl} \
-	${m_ttl:+--max-cache-ttl-ssh $m_ttl --max-cache-ttl $m_ttl} \
-	"${@}"` || {
+	if [ -n "${export_tty:++}" ]
+	then	! $verbose || Echo "$export_tty"
+		eval "$export_tty"
+	fi
+	startgpg='gpg-agent --daemon --enable-ssh-support'
+	if [ -n "${d_ttl:++}" ]
+	then	startgpg=$startgpg' --default-cache-ttl-ssh '$d_ttl
+		startgpg=$startgpg' --default-cache-ttl '$d_ttl
+	fi
+	if [ -n "${m_ttl:++}" ]
+	then	startgpg=$startgpg' --max-cache-ttl-ssh '$m_ttl
+		startgpg=$startgpg' --max-cache-ttl '$m_ttl
+	fi
+	[ -z "${gpg_args:++}" ] || startgpg=$startgpg' '$gpg_args
+	! $verbose || Echo "$startgpg"
+	startgpg=`eval "$startgpg"` || {
 		status=$?
 		if $print_environment
-		then	Echo "$export_tty"
+		then	EchoSetEvalVar "$export_tty"
 			exit $status
 		fi
 		return
 	}
 	if $print_environment
-	then	if [ -n "$export_tty" ]
-		then	Echo "$export_tty"${startgpg:+;\ }"$startgpg"
-		else	Echo "$startgpg"
-		fi
+	then	EchoSetEvalVar "$export_tty" "$startgpg"
 		$start_add || exit 0
 	fi
+	[ -n "$startgpg" ] || return 0
+	! $verbose || Echo "$startgpg"
 	eval "$startgpg"
 }
 
 ReviveGpg() {
-	! $update_tty || \
-		uptty='[ -z "${GPG_TTY:++}" ] || gpg-connect-agent updatestartuptty /bye >/dev/null'
+	InitEvalVar "$export_tty"
 	if [ "${gnupg_SSH_AUTH_SOCK_by:-0}" -ne $$ ]
-	then	revivegpg='SSH_AUTH_SOCK=`gpgconf --list-dirs agent-ssh-socket`; export SSH_AUTH_SOCK'
-		if $print_environment
-		then	Echo "$export_tty"${export_tty:+;\ }"$revivegpg"${update_tty:+;\ }"$update_tty"
-			$start_add || exit 0
-		fi
+	then	AddEvalVar 'SSH_AUTH_SOCK=`gpgconf --list-dirs agent-ssh-socket`; export SSH_AUTH_SOCK'
 	fi
-	eval "$export_tty
-$revivegpg"
+	if $update_tty
+	then	AddEvalVar '[ -z "${GPG_TTY:++}" ] || gpg-connect-agent updatestartuptty /bye >/dev/null'
+	else	AddEvalVar
+	fi
+	FinishEvalVar
+	if $print_environment
+	then	EchoEvalVar
+		$start_add || exit 0
+	fi
+	! $verbose || EchoEvalVar
+	EvalEvalVar
 }
 
-uptty=
+! $verbose || Echo "unset SSH_AUTH_SOCK SSH_AGENTPID"
 unset SSH_AUTH_SOCK SSH_AGENT_PID
 if $start_agent && ! gpg-agent >/dev/null 2>&1
 then	StartGpg
@@ -206,10 +275,9 @@ SshHaveAddedKeys() {
 
 SshAdd() {
 	! SshHaveAddedKeys || return 0
-	eval "$uptty
-set -- a $add_args"
+	eval "set -- a $add_args"
 	shift
-	ssh-add "$@" || status=$?
+	EchoExec ssh-add "$@" || status=$?
 }
 
 if $start_add
@@ -220,10 +288,10 @@ fi
 
 # 3.
 
-if $start_exec && ! $print_environment && \
-	[ -n "$name" ] && [ "$name" != 'sshstart' ]
-then	exec "${name%[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPRSTUVWXYZ]*}" "$@" \
-		|| status=$?
+if $start_exec && [ -n "$name" ] && [ "$name" != 'sshstart' ]
+then	EchoExec exec \
+	"${name%[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPRSTUVWXYZ]*}" \
+	"$@" || status=$?
 fi
 
 exit $status
