@@ -2,7 +2,7 @@
 # (C) Martin V\"ath <martin@mvath.de>
 set -u
 set -f
-version=4.4
+version=4.5
 
 Echo() {
 	printf '%s\n' "$*"
@@ -51,7 +51,7 @@ Usage() {
 	Echo "Usage: ${0##*/} [options] [--] [args]
 This script will do the following things:
 
-0. PATH is set to /local/usr/bin:/usr/bin:/bin
+0. PATH is prefixed with /usr/local/bin:/usr/bin:/bin
 1. If no gpg-agent is running, one is started to emulate an ssh server.
 2. If the user had no keys added yet, ssh-add is called.
 3. If the script is called under a different name than \"sshstart\", e.g.
@@ -178,7 +178,24 @@ fi
 # 0.
 
 if $modify_path
-then	PATH=/usr/local/bin:/usr/bin:/bin
+then	oldpath=${PATH-}
+RemoveOldpath() {
+	oldpath=${oldpath#"$1":}
+	oldpath=${oldpath%:"$1"}
+	if [ "$oldpath" = "$1" ]
+	then	oldpath=
+		return
+	fi
+	while :
+	do	removeoldpath=${oldpath#*:"$1":}
+		[ "$removeoldpath" != "$oldpath" ] || return 0
+		oldpath=${oldpath%%:"$1":*}:$removeoldpath
+	done
+}
+	RemoveOldpath /usr/local/bin
+	RemoveOldpath /usr/bin
+	RemoveOldpath /bin
+	PATH=/usr/local/bin:/usr/bin:/bin${oldpath:+:}${oldpath#:}
 	export PATH
 	! $verbose || Echo "PATH=$PATH; export PATH"
 fi
