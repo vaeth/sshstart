@@ -38,7 +38,7 @@ To get more help run `sshstart -h`.
 For __zsh completion__ support also copy 'zsh/*` into a directory of
 your zsh's `$fpath`.
 
-You also need `push.sh` from https://github.com/vaeth/push in your `$PATH`.
+You may also need `push.sh` from https://github.com/vaeth/push in your `$PATH`.
 
 For Gentoo, there is an ebuild in the `mv` repository
 (available by `app-select/eselect-repository` or `app-portage/layman`).

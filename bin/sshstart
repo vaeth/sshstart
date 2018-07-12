@@ -19,10 +19,15 @@ Version() {
 }
 
 Push() {
+case ${2:-!} in
+*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_,.:-+/@]*)
 	PushA_=`push.sh 2>/dev/null` || Fatal \
 	"push.sh from https://github.com/vaeth/push (v2.0 or newer) required"
 	eval "$PushA_"
 	Push "$@"
+	return;;
+esac
+eval "$1=\${$1-}\${$1:+\\ }\$2"
 }
 
 EchoExec() {
@@ -32,7 +37,8 @@ EchoExec() {
 		shift
 	fi
 	if $verbose
-	then	Push -c echocmd "$@" || return 0
+	then	echocmd=
+		Push echocmd "$@" || return 0
 		Echo "$echocmd"
 	fi
 	$echoexec ${1+"$@"}
