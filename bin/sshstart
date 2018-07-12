@@ -2,7 +2,7 @@
 # (C) Martin V\"ath <martin@mvath.de>
 set -u
 set -f
-version=4.5
+version=4.6
 
 Echo() {
 	printf '%s\n' "$*"
@@ -19,15 +19,19 @@ Version() {
 }
 
 Push() {
-case ${2:-!} in
-*[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_,.:-+/@]*)
-	PushA_=`push.sh 2>/dev/null` || Fatal \
+for push
+do	case ${push:-!} in
+*[!-abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_,.:+/@=]*)
+	push=`push.sh 2>/dev/null` || Fatal \
 	"push.sh from https://github.com/vaeth/push (v2.0 or newer) required"
-	eval "$PushA_"
+	eval "$push"
 	Push "$@"
 	return;;
 esac
-eval "$1=\${$1-}\${$1:+\\ }\$2"
+done
+push=$1
+shift
+eval "$push=\${$push-}\${$push:+\\ }\$*"
 }
 
 EchoExec() {
