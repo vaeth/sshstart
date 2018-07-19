@@ -2,7 +2,7 @@
 # (C) Martin V\"ath <martin@mvath.de>
 set -u
 set -f
-version=4.6
+version=4.7
 
 Echo() {
 	printf '%s\n' "$*"
@@ -255,7 +255,7 @@ StartGpg() {
 ReviveGpg() {
 	InitEvalVar "$export_tty"
 	if [ "${gnupg_SSH_AUTH_SOCK_by:-0}" -ne $$ ]
-	then	AddEvalVar 'SSH_AUTH_SOCK=`gpgconf --list-dirs agent-ssh-socket`; export SSH_AUTH_SOCK'
+	then	AddEvalVar 'SSH_AUTH_SOCK=`gpgconf --list-dirs agent-ssh-socket`&& test -S "$SSH_AUTH_SOCK" || SSH_AUTH_SOCK=`gpgconf --list-dirs | sed -n -e '\''s/^agent-socket://p'\''`; export SSH_AUTH_SOCK'
 	fi
 	if $update_tty
 	then	AddEvalVar '[ -z "${GPG_TTY:++}" ] || gpg-connect-agent updatestartuptty /bye >/dev/null'
