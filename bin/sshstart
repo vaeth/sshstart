@@ -65,7 +65,7 @@ This script will do the following things:
 1. If no gpg-agent is running, one is started to emulate an ssh server.
 2. If the user had no keys added yet, ssh-add is called.
 3. If the script is called under a different name than \"sshstart\", e.g.
-   \"ssh-wrap\" then everything after the first non-letter symbol of the
+   \"ssh-wrap\" then everything after the last non-letter symbol of the
    name is removed, and the corresponding first matching file is executed
    and gets passed [args] as arguments.
 
@@ -74,7 +74,7 @@ and \"rsync-wrap\" which then behaves like \"ssh\" or \"rsync\" but with the
 option to start first gpg-agent and add your keys if this had not yet happened.
 In order to set correct environment variables for non-wrapped commands, put
 	unset SSH_AGENT_PID
-	eval "\`sshstart -e\`"
+	eval \"\`sshstart -e\`\"
 in your shell startup file. It might also be convenient to put e.g.
 	alias ssh='ssh-wrap --'
 	alias rsync='rsync-wrap --'
@@ -92,8 +92,8 @@ The following options are available:
 -G     Skip step 1: do not start the gpg-agent
 -A     Skip step 2: do not run ssh-add
 -X     Skip step 3: Do not execute anything afterwards
--e     Similar to -X but output sockets for usage with eval. Disables -v
-       If combined with -T do not output commands to set/update GPG_TTY
+-e     Similar to -X but output sockets for usage with eval. Disables -v.
+       If combined with -T does not output commands to set/update GPG_TTY
 -g ARG Pass ARG to gpg-agent (accumulative)
 -a ARG Pass ARG to ssh-add (accumulative)
 -x NAME Pretend that the script has been called under the name \"NAME\"
