@@ -74,7 +74,7 @@ and \"rsync-wrap\" which then behaves like \"ssh\" or \"rsync\" but with the
 option to start first gpg-agent and add your keys if this had not yet happened.
 In order to set correct environment variables for non-wrapped commands, put
 	unset SSH_AGENT_PID
-	eval "`sshstart -e`"
+	eval "\`sshstart -e\`"
 in your shell startup file. It might also be convenient to put e.g.
 	alias ssh='ssh-wrap --'
 	alias rsync='rsync-wrap --'
@@ -86,7 +86,8 @@ The following options are available:
        (default: 315360000 seconds = 10 years; - uses gpg-agents's default)
 -t SEC pass --max-cache-ttl-ssh SEC --max-cache-ttl SEC to gpg-agent
        (default: 315360000 = 10 years; - uses gpg-agents's default)
--T     Do not set GPG_TTY. You might want to manually export GPG_TTY=\`tty\`
+-T     Do not set GPG_TTY. You might want to manually export GPG_TTY=\`tty\`.
+       Can be comined with -e.
 -U     Do not update tty according to GPG_TTY. Similar to -T with unset GPG_TTY
 -G     Skip step 1: do not start the gpg-agent
 -A     Skip step 2: do not run ssh-add
