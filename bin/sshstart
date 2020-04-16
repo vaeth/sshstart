@@ -256,8 +256,7 @@ StartGpg() {
 ReviveGpg() {
 	InitEvalVar "$export_tty"
 	if [ "${gnupg_SSH_AUTH_SOCK_by:-0}" -ne $$ ]
-	then	AddEvalVar 'SSH_AUTH_SOCK=`gpgconf --list-dirs agent-ssh-socket`&& test -S "$SSH_AUTH_SOCK" || SSH_AUTH_SOCK=`gpgconf --list-dirs | sed -n -e '\''s/^agent-socket://p'\''`; export SSH_AUTH_SOCK'
-	fi
+        then	AddEvalVar '[ "${gnupg_SSH_AUTH_SOCK_by:-0}" -ne $$ ] && SSH_AUTH_SOCK="$(gpgconf --list-dirs agent-ssh-socket)" && [ -S "$SSH_AUTH_SOCK" ] || SSH_AUTH_SOCK="$(gpgconf --list-dirs | sed -n '\''s/^agent-socket://p'\'')"; export SSH_AUTH_SOCK'	fi
 	if $update_tty
 	then	AddEvalVar '[ -z "${GPG_TTY:++}" ] || gpg-connect-agent updatestartuptty /bye >/dev/null'
 	else	AddEvalVar
@@ -282,12 +281,10 @@ fi
 
 AddKeys() {
 	set +f
-	for addkeys in "$HOME"/.ssh/id*
-	do	case $addkeys in
-		*.pub)
-			continue;;
-		esac
-		test -r "$addkeys" && Push add_args "$addkeys"
+	for addkeys in "$HOME"/.ssh/*.pub
+	do	
+		addkeys="${addkeys%.[^.]*}"
+		test -f "$addkeys" && test -r "$addkeys" && Push add_args "$addkeys"
 	done
 	set -f
 }
