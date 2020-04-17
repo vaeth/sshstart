@@ -282,12 +282,10 @@ fi
 
 AddKeys() {
 	set +f
-	for addkeys in "$HOME"/.ssh/id*
-	do	case $addkeys in
-		*.pub)
-			continue;;
-		esac
-		test -r "$addkeys" && Push add_args "$addkeys"
+	for addkeys in "$HOME"/.ssh/*.pub
+	do	
+		addkeys="${addkeys%.[^.]*}"
+		test -f "$addkeys" && test -r "$addkeys" && Push add_args "$addkeys"
 	done
 	set -f
 }
