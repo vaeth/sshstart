@@ -1,8 +1,9 @@
 #!/usr/bin/env sh
 # (C) Martin V\"ath <martin@mvath.de>
+# SPDX-License-Identifier: MIT
 set -u
 set -f
-version=4.7
+version=4.10
 
 Echo() {
 	printf '%s\n' "$*"

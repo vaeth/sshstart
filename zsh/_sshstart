@@ -1,4 +1,5 @@
 #compdef sshstart mosh-wrap rsync-wrap scp-wrap sftp-wrap ssh-wrap zssh-wrap
+# SPDX-License-Identifier: MIT
 case $service in
 (*-wrap)
 local i

@@ -4,6 +4,7 @@ Start `gpg-agent`/`ssh-add` automatically when you use __ssh__ or friends.
 
 (C) Martin Väth (martin at mvath.de).
 This project is under the MIT license.
+SPDX-License-Identifier: MIT
 
 This script acts as a frontend for __ssh__ and friends which asks you for
 the passphrase of keys automatically, running `gpg-agent` and `ssh-add`
